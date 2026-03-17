@@ -1,0 +1,31 @@
+@import "tailwindcss";
+/* THE PRINT MAGIC */
+@media print {
+  /* Hide everything on the page by default */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Make ONLY the report and its contents visible */
+  #esg-report-frame, #esg-report-frame * {
+    visibility: visible;
+  }
+  
+  /* Strip away the app background and position the report perfectly for A4 */
+  #esg-report-frame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Force background colors to print (browsers hide them by default to save ink) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
