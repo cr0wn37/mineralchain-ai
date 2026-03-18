@@ -8,6 +8,7 @@ const SupplierDirectory = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mineralFilter, setMineralFilter] = useState(location.state?.autoFilter || 'All');
   const [stateFilter, setStateFilter] = useState('All');
+  const [esgFilter, setEsgFilter] = useState('All');
 
   // Extract unique states for the dropdown filter
   const uniqueStates = ['All', ...new Set(mockData.suppliers.map(s => s.state))].sort();
@@ -20,7 +21,15 @@ const SupplierDirectory = () => {
     const matchesSearch = supplier.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesMineral = mineralFilter === 'All' || supplier.mineral.includes(mineralFilter);
     const matchesState = stateFilter === 'All' || supplier.state === stateFilter;
-    return matchesSearch && matchesMineral && matchesState;
+    // 4. Check ESG (The missing piece!)
+    let matchEsg = true;
+    if (esgFilter === 'A') {
+      matchEsg = supplier.esg_rating.startsWith('A'); // Catches A, A+, A-
+    } else if (esgFilter === 'B') {
+      // B & Above means it can start with A or B
+      matchEsg = supplier.esg_rating.startsWith('A') || supplier.esg_rating.startsWith('B'); 
+    } 
+    return matchesSearch && matchesMineral && matchesState && matchEsg;
   });
 
   return (
@@ -65,6 +74,17 @@ const SupplierDirectory = () => {
             {uniqueStates.map(state => <option key={state} value={state}>{state === 'All' ? 'All States' : state}</option>)}
           </select>
         </div>
+        <div className="w-full md:w-48">
+        <select 
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer"
+          value={esgFilter}
+          onChange={(e) => setEsgFilter(e.target.value)}
+        >
+          <option value="All">All ESG Grades</option>
+          <option value="A">A-Grade Only (A+, A, A-)</option>
+          <option value="B">B-Grade & Above</option>
+        </select>
+      </div>
       </div>
 
       {/* Supplier Grid - Source [54, 55] */}
@@ -120,7 +140,7 @@ const SupplierDirectory = () => {
                 href={`mailto:procurement@${supplier.name.toLowerCase().replace(/\s+/g, '')}.com?subject=MineralChain Quote Request - ${supplier.mineral}&body=Hello, I found your profile on MineralChain AI and would like to request a quote...`}
                 className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
-                <Send className="w-4 h-4" /> Request Quote
+                <Send className="w-4 h-4" /> Request Quote <span className="text-xs font-normal text-gray-300 ml-1">(via email)</span>
               </a>
             </div>
           </div>

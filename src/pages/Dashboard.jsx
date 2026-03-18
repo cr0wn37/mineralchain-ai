@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { mockData } from '../data/mockData';
 import { AlertTriangle, Package, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -76,9 +76,20 @@ const Dashboard = () => {
           <div className="p-3 bg-blue-50 rounded-lg"><Package className="text-blue-600" /></div>
           <div><p className="text-sm text-gray-500">Active Orders</p><p className="text-2xl font-bold">₹4.2 Cr</p></div>
         </div>
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-red-50 rounded-lg"><AlertTriangle className="text-red-600" /></div>
-          <div><p className="text-sm text-gray-500">Risks Flagged</p><p className="text-2xl font-bold text-red-600">{mockData.alerts.length}</p></div>
+        {/* Updated Risks Flagged KPI Card */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="p-3 bg-red-50 rounded-lg"><AlertTriangle className="text-red-600 w-6 h-6" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Risks Flagged</p>
+              <p className="text-2xl font-bold text-red-600">{mockData.alerts.length}</p>
+            </div>
+          </div>
+          <div className="flex gap-2 text-xs font-bold mt-2">
+            <span className="px-2 py-1 bg-red-50 text-red-700 rounded-md border border-red-100">3 High</span>
+            <span className="px-2 py-1 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-100">3 Med</span>
+            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-100">2 Low</span>
+          </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-green-50 rounded-lg"><Globe className="text-green-600" /></div>
@@ -86,12 +97,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Supply Coverage Bar - Source [38] */}
+      {/* Supply Coverage Bar */}
       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-8">
         <h2 className="text-lg font-semibold mb-4 text-left">Supply Coverage (Days Remaining)</h2>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={coverageData} layout="vertical" margin={{ left: 20, right: 20 }}>
+            <BarChart data={coverageData} layout="vertical" margin={{ left: 20, right: 30 }}> {/* Increased right margin so labels fit */}
               <XAxis type="number" hide />
               <YAxis dataKey="name" type="category" width={80} />
               <Tooltip cursor={{fill: 'transparent'}} />
@@ -99,6 +110,8 @@ const Dashboard = () => {
                 {coverageData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.days < 10 ? '#ef4444' : '#3b82f6'} />
                 ))}
+                {/* THE FIX: Adds the number label to the end of the bar */}
+                <LabelList dataKey="days" position="right" fill="#4b5563" fontSize={14} fontWeight="bold" formatter={(value) => `${value}d`} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

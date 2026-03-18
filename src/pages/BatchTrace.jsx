@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { mockData } from '../data/mockData';
 import { CheckCircle2, MapPin, Beaker, ShieldCheck, Download, QrCode, X } from 'lucide-react';
@@ -8,58 +8,101 @@ const BatchTrace = () => {
   const navigate = useNavigate();
   const [showQR, setShowQR] = useState(false);
 
-  // Catch the clicked batch, or default to the first one
+  // 1. Manage active batch with State
   const targetBatchId = location.state?.batchId;
-  const batch = mockData.batches.find(b => b.id === targetBatchId) || mockData.batches[0];
+  const [activeBatchId, setActiveBatchId] = useState(targetBatchId || mockData.batches[0].id);
 
-  // Making the timeline slightly dynamic based on the batch
+  // Auto-update if navigating from another page
+  useEffect(() => {
+    if (targetBatchId) setActiveBatchId(targetBatchId);
+  }, [targetBatchId]);
+
+  const batch = mockData.batches.find(b => b.id === activeBatchId) || mockData.batches[0];
+
+  // 2. Dynamic India-First Locations
+  const getMineLocation = (mineral) => {
+    if (mineral === 'Lithium') return 'Salal Block, Reasi, J&K';
+    if (mineral === 'Cobalt') return 'Singhbhum Reserve, Jharkhand';
+    if (mineral === 'Graphite') return 'Sivaganga Mine, Tamil Nadu';
+    return 'Eastern Mining Block, Odisha';
+  };
+
+  // 3. Dynamic Delay Context
+  const getDelayContext = (status) => {
+    if (status === 'Delayed') return 'Delayed by 14 Days (Port Congestion)';
+    if (status === 'At-Risk') return 'At-Risk (ETA variance +5 days)';
+    return 'Arriving On-Schedule';
+  };
+
+  // 4. The updated steps array
   const steps = [
-    { stage: 'Extraction', location: 'Mine Site Alpha', date: 'Day 1', detail: 'Verified Source', status: 'verified' },
-    { stage: 'Processing', location: `${batch.supplier} Facility`, date: 'Day 5', detail: `Refined to ${batch.purity}`, status: 'verified' },
-    { stage: 'Transit', location: 'Global Logistics Hub', date: 'Day 12', detail: 'In Transit', status: batch.status === 'Delayed' ? 'pending' : 'verified' },
-    { stage: 'Arrival', location: 'Destination Port', date: batch.eta, detail: batch.status, status: 'pending' },
+    { stage: 'Extraction', location: getMineLocation(batch.mineral), date: 'Day 1', detail: 'Verified Source', status: 'verified' },
+    { stage: 'Processing', location: `${batch.supplier} Plant, Gujarat`, date: 'Day 5', detail: `Refined to ${batch.purity}`, status: 'verified' },
+    { stage: 'Transit', location: 'Mundra Port / Inland Hub', date: 'Day 12', detail: 'In Transit via Rail', status: batch.status === 'Delayed' ? 'pending' : 'verified' },
+    { stage: 'Arrival', location: 'Pune EV Assembly Hub', date: batch.eta, detail: getDelayContext(batch.status), status: 'pending' },
   ];
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex justify-between items-start mb-8">
-        <div className="text-left">
-          <h1 className="text-3xl font-bold mb-2">Batch Traceability</h1>
-          <p className="text-gray-500 font-mono text-sm">Tracing Batch: {batch.id} • Mineral: {batch.mineral}</p>
+      <div className="flex justify-between items-start mb-8 border-b border-gray-200 pb-6">
+        <div className="text-left flex-1">
+          <h1 className="text-3xl font-bold mb-3">Batch Traceability</h1>
+          
+          {/* NEW: Batch Selector Dropdown */}
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 font-mono text-sm uppercase tracking-wider">Trace ID:</span>
+            <select 
+              value={activeBatchId}
+              onChange={(e) => setActiveBatchId(e.target.value)}
+              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm font-bold rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 cursor-pointer shadow-sm transition-all"
+            >
+              {mockData.batches.map(b => (
+                <option key={b.id} value={b.id}>{b.id} — {b.mineral}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="flex gap-2">
-          {/* UPDATED: Route to ESG Report with this batch selected */}
+
+        <div className="flex gap-3">
           <button 
             onClick={() => navigate('/esg', { state: { batchId: batch.id } })}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm"
           >
             <Download className="w-4 h-4" /> Export ESG PDF
           </button>
-          {/* UPDATED: Open QR Modal */}
           <button 
             onClick={() => setShowQR(true)}
-            className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-all"
+            className="p-2 bg-gray-900 border border-gray-900 rounded-lg shadow-sm hover:bg-gray-800 transition-all"
           >
-            <QrCode className="w-6 h-6 text-gray-700" />
+            <QrCode className="w-6 h-6 text-white" />
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Timeline */}
-        <div className="md:col-span-2 space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-blue-500 before:via-gray-300 before:to-transparent">
+        
+        {/* NEW: Straight Vertical Timeline */}
+        <div className="md:col-span-2 space-y-6 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-blue-500 before:via-gray-300 before:to-transparent">
           {steps.map((step, index) => (
-            <div key={index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                {step.status === 'verified' ? <CheckCircle2 className="w-5 h-5 text-blue-600" /> : <MapPin className="w-5 h-5 text-gray-400" />}
+            <div key={index} className="relative flex items-start gap-6 group">
+              
+              {/* Timeline Icon */}
+              <div className={`flex items-center justify-center w-12 h-12 rounded-full border-4 border-white shadow-md shrink-0 z-10 transition-colors ${step.status === 'verified' ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                {step.status === 'verified' ? <CheckCircle2 className="w-6 h-6 text-blue-600" /> : <MapPin className="w-6 h-6 text-gray-400" />}
               </div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-gray-200 bg-white shadow-sm text-left">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-gray-900">{step.stage}</span>
-                  <time className="font-mono text-xs text-blue-600">{step.date}</time>
+              
+              {/* Timeline Card */}
+              <div className="flex-1 p-5 rounded-xl border border-gray-200 bg-white shadow-sm text-left hover:border-blue-300 transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-gray-900 text-lg">{step.stage}</span>
+                  <span className="px-3 py-1 bg-gray-50 border border-gray-200 rounded-md font-mono text-xs font-bold text-blue-600">
+                    {step.date}
+                  </span>
                 </div>
-                <p className="text-sm text-gray-600 font-medium">{step.location}</p>
-                <p className="text-xs text-gray-400 mt-1">{step.detail}</p>
+                <p className="text-sm text-gray-800 font-semibold">{step.location}</p>
+                <p className={`text-xs mt-1.5 font-medium ${step.detail.includes('Delayed') ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+                  {step.detail}
+                </p>
               </div>
             </div>
           ))}
