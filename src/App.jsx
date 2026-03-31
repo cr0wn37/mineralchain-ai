@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Menu, X, LayoutDashboard, ShieldAlert, Route as TraceIcon, Users, FileText, Loader2 } from 'lucide-react';
+import { Menu, X, LayoutDashboard, ShieldAlert, Route as TraceIcon, Users, FileText, Loader2,Map as MapIcon } from 'lucide-react';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -9,6 +9,7 @@ import BatchTrace from './pages/BatchTrace';
 import SupplierDirectory from './pages/SupplierDirectory';
 import ESGReport from './pages/ESGReport';
 import NotFound from './pages/NotFound'; // Ensure this file exists in /pages
+import MiningMap from './components/MiningMap';
 
 // Components
 import FeedbackForm from './components/FeedbackForm';
@@ -19,6 +20,7 @@ const Navigation = () => {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { name: 'Asset Map', path: '/map', icon: <MapIcon className="w-4 h-4" /> },
     { name: 'Risk Alerts', path: '/alerts', icon: <ShieldAlert className="w-4 h-4" /> },
     { name: 'Batch Trace', path: '/trace', icon: <TraceIcon className="w-4 h-4" /> },
     { name: 'Suppliers', path: '/suppliers', icon: <Users className="w-4 h-4" /> },
@@ -97,6 +99,7 @@ const AppContent = () => {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
+      <Route path="/map" element={<MiningMap />} />
       <Route path="/alerts" element={<RiskAlerts />} />
       <Route path="/trace" element={<BatchTrace />} />
       <Route path="/suppliers" element={<SupplierDirectory />} />

@@ -52,10 +52,16 @@ const FeedbackForm = () => {
       {/* Floating Button */}
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 transition-all z-50 flex items-center gap-2"
+        // Changed: Smaller padding (p-3), smaller icon (w-5 h-5), and removed text
+        className="fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-xl hover:bg-blue-700 hover:scale-110 transition-all z-[1001] flex items-center justify-center group"
+        aria-label="Leave Feedback"
       >
-        <MessageSquare className="w-6 h-6" />
-        <span className="font-bold hidden md:inline pr-2">Leave Feedback</span>
+        <MessageSquare className="w-5 h-5" />
+        
+        {/* Tooltip: Only shows when they hover over the icon */}
+        <span className="absolute right-full mr-3 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity font-bold uppercase tracking-widest shadow-lg">
+          Leave Feedback
+        </span>
       </button>
 
       {/* Slide-over Modal */}

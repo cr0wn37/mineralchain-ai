@@ -25,7 +25,7 @@ export const mockData = {
   ],
   // 12 Suppliers for the Directory
   suppliers: [
-    { id: "SUP-101", name: "NMDC India", state: "Chhattisgarh", mineral: "Lithium/Iron", esg_rating: "A", delivery_time: "5 days", capacity: "High" },
+    { id: "SUP-101", name: "NMDC India", state: "Salal Block, Jammu & Kashmir", mineral: "Lithium/Iron", esg_rating: "A", delivery_time: "5 days", capacity: "High" },
     { id: "SUP-102", name: "Vedanta Ltd", state: "Rajasthan", mineral: "Zinc/Cobalt", esg_rating: "B+", delivery_time: "7 days", capacity: "Medium" },
     { id: "SUP-103", name: "GSI Exploration", state: "Jammu & Kashmir", mineral: "Lithium", esg_rating: "A-", delivery_time: "14 days", capacity: "Emerging" },
     { id: "SUP-104", name: "Epsilon Advanced", state: "Karnataka", mineral: "Graphite", esg_rating: "A", delivery_time: "3 days", capacity: "High" },
