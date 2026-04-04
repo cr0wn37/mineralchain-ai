@@ -265,6 +265,12 @@ const MiningMap = () => {
                     <div className="flex justify-between"><span className="text-sm text-gray-500">Run of Mine (ROM)</span><span className="text-sm font-semibold">{activePanelSite.production.runOfMine}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-500">Ore Quality</span><span className="text-sm font-semibold">{activePanelSite.production.quality}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-500">Utilisation</span><span className="text-sm font-semibold">{activePanelSite.utilisation}%</span></div>
+                    
+                    {/* NEW: Current Supply Line */}
+                    <div className="flex justify-between pt-2 mt-2 border-t border-gray-100">
+                      <span className="text-sm font-bold text-gray-700">Current Supply</span>
+                      <span className="text-sm font-black text-green-600 bg-green-50 px-2 py-0.5 rounded">{activePanelSite.production.currentSupply}</span>
+                    </div>
                   </div>
                 </div>
 
