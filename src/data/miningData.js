@@ -106,14 +106,22 @@ export const miningSites = [
       quality: "High Grade (45% Al2O3)",
       currentSupply: "1,200 MT Available"
     },
-    logistics: {
+   logistics: {
       nearest_railhead: "Damanjodi, 15km",
-      rail_coordinates: [18.7700, 82.8700],
-      travel_time_rail: "1 hr",
-      nearest_port: "Visakhapatnam Port, 170km",
-      port_coordinates: [17.6900, 83.2900],
-      travel_time_port: "5 hrs",
-      estDelivery: "3-5 Days"
+      rail_coordinates: [18.8100, 82.8900],
+      // NEW: Array of port options to feed into the Optimizer
+      port_options: [
+        {
+          name: "Visakhapatnam Port",
+          coordinates: [17.6900, 83.2900],
+          nextShipmentHours: 24 // Close, but ship leaves tomorrow
+        },
+        {
+          name: "Paradip Port",
+          coordinates: [20.2600, 86.6700],
+          nextShipmentHours: 4 // Further away, but ship leaves today!
+        }
+      ]
     },
     compliance: {
       esg_score: "A-",
@@ -295,6 +303,36 @@ export const miningSites = [
       esg_score: "C-",
       riskLevel: "HIGH",
       riskFactor: "Mining lease renewal pending; underground operations currently halted."
+    }
+  },
+  {
+    id: "INT-MIN-001",
+    name: "KABIL Lithium Project (Cortadera-I Block)",
+    operator: "Khanij Bidesh India Limited (KABIL)",
+    typeBadge: "Strategic G2G",
+    mineral: "Lithium",
+    status: "Exploration", // Just received Environmental Clearance in April 2026!
+    utilisation: 0, // Not in active production yet
+    coordinates: [-26.8000, -67.5000], // Catamarca Province, Argentina
+    production: {
+      capacity: "15,703 Hectares (Total Block Size)",
+      runOfMine: "Brine Exploration Stage",
+      quality: "High-Density Lithium Brine",
+      currentSupply: "0 MT (Targeting 2029 Extraction)"
+    },
+    logistics: {
+      nearest_railhead: "Catamarca Freight Hub",
+      // Trans-Andean route to Chilean Port for Pacific shipping to India
+      nearest_port: "Port of Antofagasta (Chile) to Mundra Port (India)",
+      port_coordinates: [-23.6500, -70.4000], // Port of Antofagasta lat/long
+      estDelivery: "25-30 Days (Ocean Transit)",
+      hs_code: "HS 28369100 (Lithium Carbonate)",
+      trade_flow: "100% India Off-take Priority"
+    },
+    compliance: {
+      esg_score: "A",
+      riskLevel: "LOW",
+      riskFactor: "Environmental clearance approved April 2026; deep exploration drilling underway."
     }
   }
 ];

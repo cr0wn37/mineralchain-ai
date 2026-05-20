@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css'; // CRITICAL: Map breaks without this
-import { X, Factory, Truck, ShieldCheck, Mail, ChevronRight } from 'lucide-react';
-import { miningSites } from '../data/miningData'; // Import your newly created data
+import { X, Factory, Truck, ShieldCheck, Mail, ChevronRight, BrainCircuit } from 'lucide-react';
+import { miningSites } from '../data/miningData';
+import { analyzeLogisticsRoutes } from '../utils/logisticsOptimizer'; // Import your newly created data
 
 // --- Config & Colors ---
 const MINERALS = ['All', 'Lithium', 'Graphite', 'Nickel', 'Cobalt', 'Copper', 'Aluminum', 'Iron Ore'];
@@ -36,6 +37,9 @@ const MiningMap = () => {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [activePanelSite, setActivePanelSite] = useState(null);
 
+  const [evaluatedLogistics, setEvaluatedLogistics] = useState(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+
   // --- Filtering Logic ---
   const filteredSites = miningSites.filter(site => {
     const matchMineral = selectedMineral === 'All' || site.mineral === selectedMineral;
@@ -48,6 +52,19 @@ const MiningMap = () => {
     // If filtering by specific status or 'All' minerals, use Status colors for urgency.
     // If filtering by specific mineral, keep it status colored so we know if it's active/suspended
     return STATUS_COLORS[site.status] || '#6b7280'; 
+  };
+
+  const handleSiteClick = async (site) => {
+    setActivePanelSite(site);
+    setEvaluatedLogistics(null);
+
+    // If this site has multiple port options, run the AI Optimizer!
+    if (site.logistics && site.logistics.port_options) {
+      setIsCalculating(true);
+      const results = await analyzeLogisticsRoutes(site, site.logistics.port_options);
+      setEvaluatedLogistics(results);
+      setIsCalculating(false);
+    }
   };
 
   return (
@@ -100,7 +117,7 @@ const MiningMap = () => {
       <div className="relative flex-grow w-full z-0">
         <MapContainer 
           center={[22.5, 82.0]} // Center of India
-          zoom={5} 
+          zoom={3} 
           className="h-full w-full bg-[#1a1a1a]" // Dark background to blend with tiles
           zoomControl={false} // Hide default zoom to keep it sleek
         >
@@ -141,90 +158,165 @@ const MiningMap = () => {
                       <p className="text-xs text-gray-500">{site.operator}</p>
                     </div>
                     
-                    {/* 2x3 Grid */}
+                   {/* 2x3 Grid (Safe Version) */}
                     <div className="grid grid-cols-2 gap-x-2 gap-y-3 mb-4">
-                      <div><p className="text-[9px] text-gray-400 uppercase">Capacity</p><p className="text-xs font-bold">{site.production.capacity.split(' ')[0]}</p></div>
-                      <div><p className="text-[9px] text-gray-400 uppercase">Utilisation</p><p className="text-xs font-bold">{site.utilisation}%</p></div>
-                      <div><p className="text-[9px] text-gray-400 uppercase">ROM</p><p className="text-xs font-bold">{site.production.runOfMine.split(' ')[0]} T/D</p></div>
-                      <div><p className="text-[9px] text-gray-400 uppercase">Est. Delivery</p><p className="text-xs font-bold">{site.logistics.estDelivery.split(' ')[0]}</p></div>
-                      <div><p className="text-[9px] text-gray-400 uppercase">Status</p><p className="text-xs font-bold" style={{color: STATUS_COLORS[site.status]}}>{site.status}</p></div>
-                      <div><p className="text-[9px] text-gray-400 uppercase">ESG Score</p><p className="text-xs font-bold text-green-600">{site.compliance.esg_score}</p></div>
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase">Capacity</p>
+                        <p className="text-xs font-bold">{site.production.capacity?.split(' ')[0] || '--'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase">Utilisation</p>
+                        <p className="text-xs font-bold">{site.utilisation}%</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase">ROM</p>
+                        <p className="text-xs font-bold">{site.production.runOfMine?.split(' ')[0] || '--'} T/D</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase">Est. Delivery</p>
+                        <p className="text-xs font-bold">{site.logistics.estDelivery?.split(' ')[0] || '--'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase">Status</p>
+                        <p className="text-xs font-bold" style={{color: STATUS_COLORS[site.status]}}>{site.status}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase">ESG Score</p>
+                        <p className="text-xs font-bold text-green-600">{site.compliance.esg_score || 'N/A'}</p>
+                      </div>
                     </div>
 
-                    <button 
-                      onClick={() => setActivePanelSite(site)}
-                      className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-1 transition-colors"
-                    >
-                      View Full Intelligence <ChevronRight className="w-3 h-3" />
-                    </button>
+                   <button 
+                    onClick={() => handleSiteClick(site)} // <-- This is the crucial change!
+                    className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    View Full Intelligence <ChevronRight className="w-3 h-3" />
+                  </button>
                   </div>
                 </Popup>
               </CircleMarker>
             );
           })}
-          {activePanelSite && activePanelSite.logistics.rail_coordinates && activePanelSite.logistics.port_coordinates && (
+          {/* DYNAMIC LOGISTICS PATHWAYS */}
+          {activePanelSite && activePanelSite.logistics && (
             <>
-              {/* --- 1. MINE TO RAILHEAD --- */}
-              <Polyline
-                positions={[activePanelSite.coordinates, activePanelSite.logistics.rail_coordinates]}
-                pathOptions={{ color: '#f59e0b', dashArray: '5, 5', weight: 2, opacity: 0.6 }}
-              />
-              
-              {/* Travel Time Label for Rail (at Midpoint) */}
-              <Marker 
-                position={getMidpoint(activePanelSite.coordinates, activePanelSite.logistics.rail_coordinates)}
-                icon={L.divIcon({
-                  html: `<div style="background: rgba(0,0,0,0.7); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #f59e0b;">${activePanelSite.logistics.travel_time_rail || '1 hr'}</div>`,
-                  className: 'bg-transparent',
-                  iconSize: [50, 20]
-                })}
-              />
+              {/* --- 1. MINE TO RAILHEAD (Always show if rail exists) --- */}
+              {activePanelSite.logistics.rail_coordinates && (
+                <>
+                  <Polyline
+                    positions={[activePanelSite.coordinates, activePanelSite.logistics.rail_coordinates]}
+                    pathOptions={{ color: '#f59e0b', dashArray: '5, 5', weight: 2, opacity: 0.6 }}
+                  />
+                  
+                  {/* Travel Time Label for Rail (at Midpoint) */}
+                  <Marker 
+                    position={getMidpoint(activePanelSite.coordinates, activePanelSite.logistics.rail_coordinates)}
+                    icon={L.divIcon({
+                      html: `<div style="background: rgba(0,0,0,0.7); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #f59e0b;">${activePanelSite.logistics.travel_time_rail || '1 hr'}</div>`,
+                      className: 'bg-transparent',
+                      iconSize: [50, 20]
+                    })}
+                  />
 
-              <Marker 
-                position={activePanelSite.logistics.rail_coordinates} 
-                icon={L.divIcon({
-                  html: `
-                    <div style="text-align: center;">
-                      <div style="font-size: 20px;">🚂</div>
-                      <div style="color: white; font-size: 9px; font-weight: bold; text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 2px; white-space: nowrap;">
-                        ${activePanelSite.logistics.nearest_railhead.split(',')[0]}
-                      </div>
-                    </div>`,
-                  className: 'bg-transparent',
-                  iconAnchor: [25, 0]
-                })}
-              />
+                  <Marker 
+                    position={activePanelSite.logistics.rail_coordinates} 
+                    icon={L.divIcon({
+                      html: `
+                        <div style="text-align: center;">
+                          <div style="font-size: 20px;">🚂</div>
+                          <div style="color: white; font-size: 9px; font-weight: bold; text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 2px; white-space: nowrap;">
+                            ${activePanelSite.logistics.nearest_railhead.split(',')[0]}
+                          </div>
+                        </div>`,
+                      className: 'bg-transparent',
+                      iconAnchor: [25, 0]
+                    })}
+                  />
+                </>
+              )}
 
-              {/* --- 2. MINE TO PORT (Direct Line) --- */}
-              <Polyline
-                positions={[activePanelSite.coordinates, activePanelSite.logistics.port_coordinates]}
-                pathOptions={{ color: '#3b82f6', dashArray: '5, 5', weight: 2, opacity: 0.6 }}
-              />
+              {/* --- 2. PORT ROUTES: AI OPTIMIZED vs STANDARD --- */}
+              {evaluatedLogistics && activePanelSite.logistics.port_options ? (
+                // AI OPTIMIZER MODE: Multiple Port Options
+                evaluatedLogistics.comparison.map((route, idx) => {
+                  const portData = activePanelSite.logistics.port_options.find(p => p.name === route.portName);
+                  const isWinner = route.isWinner;
+                  const lineColor = isWinner ? '#10b981' : '#6b7280'; // Emerald Green for winner, Gray for loser
+                  const lineOpacity = isWinner ? 0.9 : 0.4;
+                  const zIndexOffset = isWinner ? 100 : 0; // Bring winner to front
 
-              {/* Travel Time Label for Port (at Midpoint) */}
-              <Marker 
-                position={getMidpoint(activePanelSite.coordinates, activePanelSite.logistics.port_coordinates)}
-                icon={L.divIcon({
-                  html: `<div style="background: rgba(0,0,0,0.7); color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #3b82f6;">${activePanelSite.logistics.travel_time_port || '5 hrs'}</div>`,
-                  className: 'bg-transparent',
-                  iconSize: [50, 20]
-                })}
-              />
-              
-              <Marker 
-                position={activePanelSite.logistics.port_coordinates} 
-                icon={L.divIcon({
-                  html: `
-                    <div style="text-align: center;">
-                      <div style="font-size: 24px;">⚓</div>
-                      <div style="color: white; font-size: 9px; font-weight: bold; text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 2px; white-space: nowrap;">
-                        ${activePanelSite.logistics.nearest_port.split(',')[0]}
-                      </div>
-                    </div>`,
-                  className: 'bg-transparent',
-                  iconAnchor: [30, 0]
-                })}
-              />
+                  return (
+                    <React.Fragment key={idx}>
+                      <Polyline 
+                        positions={[activePanelSite.coordinates, portData.coordinates]} 
+                        pathOptions={{ color: lineColor, dashArray: '5, 5', weight: isWinner ? 3 : 2, opacity: lineOpacity }} 
+                      />
+                      
+                      {/* AI Travel Time Label */}
+                      <Marker 
+                        position={getMidpoint(activePanelSite.coordinates, portData.coordinates)} 
+                        zIndexOffset={zIndexOffset}
+                        icon={L.divIcon({
+                          html: `<div style="background: rgba(0,0,0,0.8); color: ${lineColor}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid ${lineColor}; opacity: ${lineOpacity};">${route.totalTime} hrs TTS</div>`,
+                          className: 'bg-transparent', 
+                          iconSize: [60, 20]
+                        })} 
+                      />
+
+                      {/* Port Node */}
+                      <Marker 
+                        position={portData.coordinates} 
+                        zIndexOffset={zIndexOffset}
+                        icon={L.divIcon({
+                          html: `
+                            <div style="text-align: center; opacity: ${lineOpacity};">
+                              <div style="font-size: 24px;">⚓</div>
+                              <div style="color: white; font-size: 9px; font-weight: bold; text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 2px; white-space: nowrap;">
+                                ${route.portName?.split(' ')[0] || 'Port'}
+                              </div>
+                            </div>`,
+                          className: 'bg-transparent', 
+                          iconAnchor: [30, 0]
+                        })} 
+                      />
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                // STANDARD MODE: Single Port (Your exact original blue layout)
+                activePanelSite.logistics.port_coordinates && (
+                  <>
+                    <Polyline
+                      positions={[activePanelSite.coordinates, activePanelSite.logistics.port_coordinates]}
+                      pathOptions={{ color: '#3b82f6', dashArray: '5, 5', weight: 2, opacity: 0.6 }}
+                    />
+
+                    <Marker 
+                      position={getMidpoint(activePanelSite.coordinates, activePanelSite.logistics.port_coordinates)}
+                      icon={L.divIcon({
+                        html: `<div style="background: rgba(0,0,0,0.7); color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #3b82f6;">${activePanelSite.logistics.travel_time_port || '5 hrs'}</div>`,
+                        className: 'bg-transparent',
+                        iconSize: [50, 20]
+                      })}
+                    />
+                    
+                    <Marker 
+                      position={activePanelSite.logistics.port_coordinates} 
+                      icon={L.divIcon({
+                        html: `
+                          <div style="text-align: center;">
+                            <div style="font-size: 24px;">⚓</div>
+                            <div style="color: white; font-size: 9px; font-weight: bold; text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 2px; white-space: nowrap;">
+                              ${activePanelSite.logistics.nearest_port?.split(',')[0] || 'N/A'}
+                            </div>
+                          </div>`,
+                        className: 'bg-transparent',
+                        iconAnchor: [30, 0]
+                      })}
+                    />
+                  </>
+                )
+              )}
             </>
           )}
         </MapContainer>
@@ -254,6 +346,29 @@ const MiningMap = () => {
 
               {/* Panel Body (Scrollable) */}
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+                {/* NEW: AI Logistics Optimizer Result Box (Only shows if options exist) */}
+                {evaluatedLogistics && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm">
+                    <h3 className="flex items-center gap-1.5 text-xs font-black text-emerald-800 uppercase tracking-widest mb-2">
+                      <BrainCircuit className="w-4 h-4" /> AI Route Optimization
+                    </h3>
+                    <p className="text-[11px] text-emerald-700 leading-relaxed mb-3 font-medium">
+                      Calculated Total Time to Sea (TTS) including road transit and live port wait times.
+                    </p>
+                    <div className="space-y-1.5">
+                      {evaluatedLogistics.comparison.map((r, i) => (
+                        <div key={i} className={`flex justify-between items-center text-xs p-2 rounded border ${r.isWinner ? 'bg-emerald-200 border-emerald-300 font-bold text-emerald-900 shadow-sm' : 'border-transparent text-gray-500'}`}>
+                          <span className="flex items-center gap-1">
+                            {r.isWinner && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>}
+                            {r.portName}
+                          </span>
+                          <span>{r.totalTime} Hrs</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Production Section */}
                 <div>
@@ -266,7 +381,7 @@ const MiningMap = () => {
                     <div className="flex justify-between"><span className="text-sm text-gray-500">Ore Quality</span><span className="text-sm font-semibold">{activePanelSite.production.quality}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-500">Utilisation</span><span className="text-sm font-semibold">{activePanelSite.utilisation}%</span></div>
                     
-                    {/* NEW: Current Supply Line */}
+                    {/* Current Supply Line */}
                     <div className="flex justify-between pt-2 mt-2 border-t border-gray-100">
                       <span className="text-sm font-bold text-gray-700">Current Supply</span>
                       <span className="text-sm font-black text-green-600 bg-green-50 px-2 py-0.5 rounded">{activePanelSite.production.currentSupply}</span>
@@ -277,15 +392,46 @@ const MiningMap = () => {
                 {/* Logistics Section */}
                 <div>
                   <h3 className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
-                    <Truck className="w-4 h-4 text-gray-400" /> Logistics
+                    <Truck className="w-4 h-4 text-gray-400" /> Logistics & Trade
                   </h3>
                   <div className="space-y-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-500">Nearest Rail</span><span className="text-sm font-semibold text-right">{activePanelSite.logistics.nearest_railhead}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-500">Nearest Port</span><span className="text-sm font-semibold text-right">{activePanelSite.logistics.nearest_port}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-500">Est. Delivery</span><span className="text-sm font-semibold">{activePanelSite.logistics.estDelivery}</span></div>
+                    {/* Railhead (Only shown if applicable) */}
+                    {activePanelSite.logistics.nearest_railhead && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Nearest Rail</span>
+                        <span className="text-sm font-semibold text-right">{activePanelSite.logistics.nearest_railhead.split(',')[0]}</span>
+                      </div>
+                    )}
+
+                    {/* Port / Global Trade Hub */}
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">{activePanelSite.typeBadge === "Strategic G2G" ? "Origin Port" : "Default Port"}</span>
+                      <span className="text-sm font-semibold text-right">{activePanelSite.logistics.nearest_port?.split(',')[0] || 'Multiple Hubs'}</span>
+                    </div>
+
+                    {/* NEW: HS Code (Crucial for customs/importing) */}
+                    {activePanelSite.logistics.hs_code && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Customs HS Code</span>
+                        <span className="text-sm font-mono font-semibold bg-gray-100 px-1.5 rounded">{activePanelSite.logistics.hs_code}</span>
+                      </div>
+                    )}
+
+                    {/* NEW: Trade Flow (Helps VCs understand supply reliability) */}
+                    {activePanelSite.logistics.trade_flow && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Trade Flow</span>
+                        <span className="text-sm font-semibold text-emerald-600">{activePanelSite.logistics.trade_flow}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between pt-1 border-t border-gray-50">
+                      <span className="text-sm text-gray-500">Est. Delivery</span>
+                      <span className="text-sm font-semibold">{activePanelSite.logistics.estDelivery || 'Dynamic'}</span>
+                    </div>
                   </div>
                 </div>
-
+                
                 {/* Compliance Section */}
                 <div>
                   <h3 className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
@@ -333,7 +479,6 @@ const MiningMap = () => {
           ))}
         </div>
         
-        {/* Only show Mineral swatches if 'All' statuses are shown, or just show it anyway for context */}
         <div className="flex items-center gap-3 opacity-70">
           <span className="italic">Radius scales with asset utilisation (%)</span>
         </div>
