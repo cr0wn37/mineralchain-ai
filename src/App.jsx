@@ -9,7 +9,7 @@ import BatchTrace from './pages/BatchTrace';
 import SupplierDirectory from './pages/SupplierDirectory';
 import ESGReport from './pages/ESGReport';
 import NotFound from './pages/NotFound'; // Ensure this file exists in /pages
-import MiningMap from './components/MiningMap';
+import AssetMapPage from './components/AssetMapPage';
 
 // Components
 import FeedbackForm from './components/FeedbackForm';
@@ -99,7 +99,7 @@ const AppContent = () => {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
-      <Route path="/map" element={<MiningMap />} />
+      <Route path="/map" element={<AssetMapPage />} />
       <Route path="/alerts" element={<RiskAlerts />} />
       <Route path="/trace" element={<BatchTrace />} />
       <Route path="/suppliers" element={<SupplierDirectory />} />
