@@ -34,12 +34,35 @@ const BatchTrace = () => {
     return 'Arriving On-Schedule';
   };
 
-  // 4. The updated steps array
   const steps = [
-    { stage: 'Extraction', location: getMineLocation(batch.mineral), date: 'Day 1', detail: 'Verified Source', status: 'verified' },
-    { stage: 'Processing', location: `${batch.supplier} Plant, Gujarat`, date: 'Day 5', detail: `Refined to ${batch.purity}`, status: 'verified' },
-    { stage: 'Transit', location: 'Mundra Port / Inland Hub', date: 'Day 12', detail: 'In Transit via Rail', status: batch.status === 'Delayed' ? 'pending' : 'verified' },
-    { stage: 'Arrival', location: 'Pune EV Assembly Hub', date: batch.eta, detail: getDelayContext(batch.status), status: 'pending' },
+    { 
+      stage: 'Extraction & Processing', 
+      location: batch.origin, // Dynamically pulls "Port Hedland, AU" or "Kolwezi, DRC"
+      date: 'Origin Scan', 
+      detail: `${batch.supplier} — Provenance: ${batch.esg?.cert || 'Verified'}`, 
+      status: 'verified' 
+    },
+    { 
+      stage: 'Port Departure', 
+      location: 'Export Terminal', 
+      date: 'In Transit', 
+      detail: `Maritime Transit / Bulk Freight`, 
+      status: 'verified' 
+    },
+    { 
+      stage: 'Regional Arrival', 
+      location: batch.destination, // Dynamically pulls "Port of Mundra, IN" or "Chennai Port, IN"
+      date: batch.eta, 
+      detail: batch.status === 'Delayed' || batch.status === 'At-Risk' || batch.status === 'Inland Delay' ? 'Chokepoint Alert Triggered' : 'Customs Clearance Pending', 
+      status: batch.status === 'Delayed' || batch.status === 'At-Risk' || batch.status === 'Inland Delay' ? 'alert' : 'pending' 
+    },
+    { 
+      stage: 'Final Delivery', 
+      location: 'Manufacturing Facility', 
+      date: 'TBD', 
+      detail: 'Awaiting inland freight confirmation', 
+      status: 'pending' 
+    },
   ];
 
   return (

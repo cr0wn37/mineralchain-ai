@@ -89,7 +89,11 @@ const SupplierDirectory = () => {
 
       {/* Supplier Grid - Source [54, 55] */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSuppliers.map(supplier => (
+        {filteredSuppliers.map(supplier => {
+          // Clean up complex company names for the mock email link (removes parentheses/special chars)
+          const cleanEmailName = supplier.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          return (
           <div key={supplier.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex flex-col text-left overflow-hidden">
             <div className="p-5 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
               <div className="flex items-center gap-3">
@@ -101,16 +105,13 @@ const SupplierDirectory = () => {
                   <p className="text-xs font-mono text-gray-400 mt-0.5">{supplier.id}</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-md">
+              <div className="flex flex-col items-end gap-1.5">
+                <span className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md">
                   <Leaf className="w-3 h-3" /> ESG: {supplier.esg_rating}
                 </span>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                  supplier.capacity === 'High' ? 'bg-purple-100 text-purple-700' : 
-                  supplier.capacity === 'Medium' ? 'bg-blue-100 text-blue-700' : 
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {supplier.capacity} Capacity
+                {/* UPGRADED CAPACITY BADGE: Sleek and dynamic for metrics */}
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  {supplier.capacity}
                 </span>
               </div>
             </div>
@@ -123,7 +124,8 @@ const SupplierDirectory = () => {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> Location</p>
-                  <p className="text-sm font-semibold text-gray-800">{supplier.state}</p>
+                  {/* UPGRADED LOCATION KEY: Pulls the correct global location */}
+                  <p className="text-sm font-semibold text-gray-800">{supplier.location}</p>
                 </div>
               </div>
               
@@ -137,14 +139,14 @@ const SupplierDirectory = () => {
 
             <div className="p-4 bg-gray-50 border-t border-gray-100 mt-auto">
               <a 
-                href={`mailto:procurement@${supplier.name.toLowerCase().replace(/\s+/g, '')}.com?subject=MineralChain Quote Request - ${supplier.mineral}&body=Hello, I found your profile on MineralChain AI and would like to request a quote...`}
+                href={`mailto:procurement@${cleanEmailName}.com?subject=MineralChain Quote Request - ${supplier.mineral}&body=Hello, I found your profile on MineralChain AI and would like to request a quote...`}
                 className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 <Send className="w-4 h-4" /> Request Quote <span className="text-xs font-normal text-gray-300 ml-1">(via email)</span>
               </a>
             </div>
           </div>
-        ))}
+        )})}
         
         {/* Empty State */}
         {filteredSuppliers.length === 0 && (
