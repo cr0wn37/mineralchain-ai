@@ -1,131 +1,108 @@
 // backend/scoring/riskScorer.js
+const { Groq } = require('groq-sdk');
+const { createClient } = require('@supabase/supabase-js');
+const { generateEmbedding } = require('../services/ragIngestion');
 
-// 1. RISK CATEGORIZATION ENGINE
-// Groups risks into specific buckets and assigns a base weight to them.
-const RISK_CONFIG = {
-  GEOPOLITICAL: { 
-    keywords: ['ban', 'sanctions', 'policy', 'government', 'regulation', 'export', 'restriction', 'tariff'],
-    weight: 45 
-  },
-  ENVIRONMENTAL: { 
-    keywords: ['flood', 'weather', 'landslide', 'earthquake', 'glacier', 'climate', 'cyclone', 'storm'],
-    weight: 35 
-  },
-  OPERATIONAL: { 
-    keywords: ['strike', 'accident', 'fatalities', 'halt', 'suspended', 'shortage', 'blocked', 'collapse', 'fire', 'disruption'],
-    weight: 25 
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY);
+
+/**
+ * RAG Helper: Queries Supabase pgvector for news relevant to active batch routes
+ */
+async function fetchRelevantRAGContext(activeBatches) {
+  console.log('🔍 Agent: Running vector search in Supabase for batch route risks...');
+  
+  // Construct search queries based on active batch origins, destinations, and minerals
+  const searchQueries = activeBatches.map(b => `${b.mineral} ${b.origin} ${b.destination}`).join(" ");
+  
+  // Convert search query into 384-dim vector
+  const queryVector = await generateEmbedding(searchQueries);
+  if (!queryVector) return [];
+
+  // Query Supabase match_news function
+  const { data: matchedArticles, error } = await supabase.rpc('match_news', {
+    query_embedding: queryVector,
+    match_threshold: 0.15,
+    match_count: 5
+  });
+
+  if (error) {
+    console.warn('⚠️ Supabase vector search warning:', error.message);
+    return [];
   }
-};
 
-// 2. FALSE-POSITIVE GUARD
-const POSITIVE_KEYWORDS = [
-  'zero', 'safe', 'improvement', 'success', 'no fatalities', 
-  'resumed', 'resolved', 'award', 'growth', 'stable'
-];
-
-// 3. MINERAL MAP
-const MINERAL_MAP = {
-  'lithium': 'Lithium', 'cobalt': 'Cobalt',
-  'graphite': 'Graphite', 'nickel': 'Nickel',
-  'rare earth': 'Rare Earths','copper': 'Copper',    
-  'aluminum': 'Aluminum',  
-  'aluminium': 'Aluminum'
-};
-
-// 4. LOCATION DETECTION MAP
-const LOCATIONS = [
-  'India', 'J&K', 'Odisha', 'Jharkhand', 'Goa', 
-  'Chile', 'Antofagasta', 'China', 'Congo', 'Australia', 'Indonesia'
-];
-
-// Generates fake batches so your React UI's `.join(', ')` doesn't crash
-function generateAffectedBatches() {
-  const count = Math.floor(Math.random() * 3) + 1; 
-  const batches = [];
-  for (let i = 0; i < count; i++) {
-    batches.push(`BT-${Math.floor(Math.random() * 9000) + 1000}`);
-  }
-  return batches;
+  return matchedArticles || [];
 }
 
-function scoreArticle(article) {
-  const text = (article.title + ' ' + article.description).toLowerCase();
-  
-  // A. Detect Mineral
-  let mineral = 'General';
-  for (const [keyword, name] of Object.entries(MINERAL_MAP)) {
-    if (text.includes(keyword)) { mineral = name; break; }
-  }
+/**
+ * Main Agent Function: Analyzes active batches + RAG news and returns JSON alerts
+ */
+async function analyzeBatchRisksWithGroq(activeBatches) {
+  console.log('\n🤖 Agent: Initializing Autonomous Risk Analysis via Groq (Llama 3)...');
 
-  // B. Detect Location
-  let location = 'Global';
-  for (const loc of LOCATIONS) {
-    if (text.includes(loc.toLowerCase())) { location = loc; break; }
-  }
-  
-  // C. Calculate Intelligence Score & Category
-  let baseScore = 20; // Baseline score just for making the news
-  let category = 'Market';
+  // 1. Perform RAG Vector Search
+  const ragNews = await fetchRelevantRAGContext(activeBatches);
+  console.log(`📰 Agent retrieved ${ragNews.length} relevant intelligence articles from vector DB.`);
 
-  for (const [cat, config] of Object.entries(RISK_CONFIG)) {
-    if (config.keywords.some(k => text.includes(k))) {
-      category = cat;
-      baseScore += config.weight;
-      break; // Stops at the first matched category
+  // 2. Prepare System & User Prompts for Groq
+ // Inside backend/scoring/riskScorer.js
+
+  const systemPrompt = `You are an Enterprise Supply Chain Intelligence Agent for MineralChain AI.
+Your task is to analyze active transit batches against real-time news intelligence retrieved from our vector database.
+
+RULES:
+1. Generate between 3 to 5 distinct risk alerts covering different minerals and active batches if news context supports it.
+2. Vary severity levels appropriately ("High", "Medium", "Low").
+3. For each alert, summarize the real-world cause from news context and recommend a concrete mitigation action.
+4. List the exact affected batch IDs (e.g. ["BT-9041", "BT-8821"]).
+
+CRITICAL: Return ONLY a valid JSON object formatted exactly like this:
+{
+  "alerts": [
+    {
+      "id": "ALT-001",
+      "severity": "High",
+      "mineral": "Lithium",
+      "cause": "Specific concise disruption cause from news context...",
+      "action": "Recommended supply chain mitigation step...",
+      "affected_batches": ["BT-9041"]
     }
+  ]
+}
+Do not include any extra prose, markdown code blocks, or conversational text outside the JSON.`;
+  const userPrompt = `
+ACTIVE TRANSIT BATCHES:
+${JSON.stringify(activeBatches, null, 2)}
+
+RETRIEVED RAG NEWS CONTEXT:
+${JSON.stringify(ragNews.map(n => ({ title: n.title, description: n.description, source: n.source })), null, 2)}
+`;
+
+  try {
+    // 3. Call Groq API with hyper-fast Llama 3 inference
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
+    });
+
+    const rawResponse = completion.choices[0]?.message?.content;
+    const parsedData = JSON.parse(rawResponse);
+    
+    console.log('✅ Agentic analysis complete!');
+    return parsedData.alerts || [];
+
+  } catch (err) {
+    console.error('❌ Groq Agent Error:', err.message);
+    // Safe fallback if API key or rate limit occurs
+    return [];
   }
-
-  // D. Sentiment Override (The False-Positive Fix)
-  let finalScore;
-  const isPositive = POSITIVE_KEYWORDS.some(k => text.includes(k));
-  
-  if (isPositive) {
-    finalScore = 10; // Demote immediately if it's good news
-  } else {
-    // Add a slight randomization (0-15) so scores look organic (e.g., 87, 92 instead of always 85)
-    finalScore = Math.min(baseScore + Math.floor(Math.random() * 15), 98);
-  }
-
-  // E. Map to UI Severity
-  let severity = 'LOW';
-  if (finalScore >= 70) severity = 'HIGH';
-  else if (finalScore >= 40) severity = 'MEDIUM';
-
-  // F. Clean up the description
-  const cleanDescription = article.description 
-    ? article.description.replace(/\.?\s*Read more/ig, '').trim() 
-    : 'No details provided.';
-
-  // G. Generate "Deep Insight" based on category & severity
-  let insight = "";
-  if (severity === 'HIGH') {
-     insight = ` 🔴 AI Insight: Critical ${category.toLowerCase()} disruption detected in ${location}. Potential 15-20% price hike expected if supply remains constrained.`;
-  } else if (severity === 'MEDIUM') {
-     insight = ` 🟡 AI Insight: Monitor ${category.toLowerCase()} indicators in ${location}. Minor logistical delays likely in the upcoming quarter.`;
-  }
-
-  return {
-    mineral: mineral,
-    severity: severity,
-    intelligence_score: finalScore, // NEW
-    category: category,             // NEW
-    location: location,             // NEW
-    cause: article.title, 
-    summary: `${cleanDescription}. ${insight}`, 
-    source: article.url,
-    action: getRecommendation(mineral, severity, category),
-    affected_batches: generateAffectedBatches(), 
-    created_at: new Date().toISOString() 
-  };
 }
 
-function getRecommendation(mineral, severity, category) {
-  if (severity === 'HIGH') {
-    if (category === 'GEOPOLITICAL') return `Immediate action: Review trade compliance and find alternative ${mineral} suppliers outside affected region.`;
-    return `Immediate action: Find alternative ${mineral} suppliers. Review active contracts for Force Majeure clauses.`;
-  }
-  if (severity === 'MEDIUM') return `Monitor closely. Consider increasing ${mineral} buffer stock by 2-3 weeks to hedge against volatility.`;
-  return `No action needed. Continue normal ${mineral} procurement.`;
-}
-
-module.exports = scoreArticle;
+module.exports = {
+  analyzeBatchRisksWithGroq
+};

@@ -1,130 +1,97 @@
-console.log("📍 Node is reading index.js...");
-
+// backend/index.js
 require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 
-// Import your scrapers
-const { scrapeRiskNews, scrapeIndianNews } = require('./scrapers/newsRisk');
-const { getWeatherAlerts, scrapeDGMSAlerts } = require('./scrapers/weatherRisk');
-const scrapeRSSFeeds = require('./scrapers/indianRSSFeeds');
-const fetchMineralPrices = require('./scrapers/mineralPrices'); // <-- ADD THIS
-const scoreArticle = require('./scoring/riskScorer');
+const { syncRSSFeedsToVectorDB } = require('./services/ragIngestion');
+const { analyzeBatchRisksWithGroq } = require('./scoring/riskScorer');
+const getMineralPrices = require('./scrapers/mineralPrices');
 
-// Initialize Supabase
+const app = express();
+app.use(cors());
+app.use(express.json());
+
 const supabase = createClient(
-  process.env.SUPABASE_URL, 
-  process.env.SUPABASE_KEY,
-  {
-    auth: {
-      persistSession: false
-    },
-    global: {
-      fetch: (...args) => fetch(...args), // Forces use of Node's native fetch
-    },
-  }
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY
 );
 
-async function runDailyRiskUpdate() {
-  console.log(`\n[${new Date().toISOString()}] 🚀 STARTING FULL RISK PIPELINE...`);
-  
+// backend/index.js
+
+const FALLBACK_BATCHES = [
+  { id: "BT-9041", mineral: "Lithium Spodumene", supplier: "SQM / Albemarle", origin: "Atacama, Chile", destination: "Port of Mundra, IN", status: "On High Seas" },
+  { id: "BT-5022", mineral: "Cobalt Hydroxide", supplier: "Glencore", origin: "Kolwezi, DRC", destination: "Chennai Port, IN", status: "Inland Transit" },
+  { id: "BT-3011", mineral: "Copper Cathode", supplier: "Codelco", origin: "Antofagasta, Chile", destination: "Hazira Port, IN", status: "In Transit" },
+  { id: "BT-7088", mineral: "Nickel Sulfate", supplier: "Vales / Tsingshan", origin: "Morowali, Indonesia", destination: "JNPT Mumbai, IN", status: "Customs Clearance" },
+  { id: "BT-1045", mineral: "Neodymium Oxide", supplier: "Lynas Rare Earths", origin: "Kwinana, Australia", destination: "Vishakhapatnam, IN", status: "Port Delay" },
+  { id: "BT-8821", mineral: "Lithium Carbonate", supplier: "Pilbara Minerals", origin: "Port Hedland, Australia", destination: "Port of Mundra, IN", status: "On High Seas" },
+  { id: "BT-4109", mineral: "Cobalt Concentrate", supplier: "CMOC Group", origin: "Tenke Fungurume, DRC", destination: "Kolkata Port, IN", status: "Inland Freight" },
+  { id: "BT-6302", mineral: "Copper Anode", supplier: "Hindustan Copper", origin: "Khetri, Rajasthan", destination: "Dahej Port, IN", status: "Dispatched" },
+  { id: "BT-2099", mineral: "Graphite Anode", supplier: "Syrah Resources", origin: "Balama, Mozambique", destination: "Chennai Port, IN", status: "In Transit" },
+  { id: "BT-5541", mineral: "Rare Earth Concentrate", supplier: "Shenghe Resources", origin: "Sichuan, China", destination: "Kandla Port, IN", status: "Export Audit" }
+];
+
+let cachedAlerts = null;
+let lastScanTime = 0;
+const CACHE_DURATION_MS = 3 * 60 * 1000; // 3 Minutes Cache
+
+// 1. Endpoint to trigger fresh news RAG ingestion
+app.post('/api/sync-rag-news', async (req, res) => {
   try {
-    // 1. Fetch all raw text articles concurrently
-    // --- STEP 1: Sequential Fetching (Saves Memory/Credits) ---
-    
-    console.log("🔍 Scraping Global News...");
-    const globalNews = await scrapeRiskNews().catch(err => { 
-        console.error('Global News err:', err.message); return []; 
-    });
-
-    console.log("🇮🇳 Scraping Indian News...");
-    const indianNews = await scrapeIndianNews().catch(err => { 
-        console.error('Indian News err:', err.message); return []; 
-    });
-
-    console.log("👷 Scraping DGMS...");
-    const dgmsAlerts = await scrapeDGMSAlerts().catch(err => { 
-        console.error('DGMS err:', err.message); return []; 
-    });
-
-    console.log("📡 Scraping RSS...");
-    const rssFeeds = await scrapeRSSFeeds().catch(err => { 
-        console.error('RSS err:', err.message); return []; 
-    });
-    console.log(`✅ Found ${rssFeeds.length} articles from RSS feeds.`);
-
-    console.log("📈 Fetching Prices...");
-    const priceData = await fetchMineralPrices().catch(err => { 
-        console.error('Prices err:', err.message); return null; 
-    });
-
-
-    // Combine all raw text sources
-    const allTextArticles = [...globalNews, ...indianNews, ...dgmsAlerts, ...rssFeeds];
-    
-    // 2. Score them all and filter out 'LOW'
-    const scoredNewsAlerts = allTextArticles
-      .map(scoreArticle)
-      .filter(a => a.severity !== 'LOW');
-
-    console.log(`✅ Scored ${scoredNewsAlerts.length} High/Medium text-based alerts.`);
-
-    // 3. Fetch pre-formatted alerts (Weather)
-    const weatherAlerts = await getWeatherAlerts().catch(err => { 
-      console.error('Weather err:', err.message); return []; 
-    });
-    console.log(`✅ Fetched ${weatherAlerts.length} active weather alerts.`);
-
-    // --- STEP 3.5: Handle Price Data Alert ---
-    let marketAlerts = [];
-    if (priceData) {
-      marketAlerts.push({
-        mineral: 'Market Overview',
-        severity: 'LOW', 
-        cause: 'Daily LME & Global Spot Price Refresh',
-        // Notice the added .price below!
-       // Inside your market alert generation in index.js
-        summary: `Latest Rates (USD/Tonne): Lithium: $${priceData.lithium?.price}, Copper: $${priceData.copper?.price}, Aluminium: $${priceData.aluminium?.price}, Nickel: $${priceData.nickel?.price}.`,
-        action: 'Informational: Review procurement margins and contract indexing against these spot rates.',
-        affected_batches: ['All Global Shipments'],
-        created_at: new Date().toISOString()
-      });
-      console.log('✅ Generated Market Price summary alert.');
-    }
-
-    // 4. Combine Everything
-    const finalAlertsToSave = [...scoredNewsAlerts, ...weatherAlerts, ...marketAlerts];
-    
-    // 5. Save to Supabase
-    if (finalAlertsToSave.length > 0) {
-      console.log(`📡 Attempting to push ${finalAlertsToSave.length} alerts to Supabase...`);
-      
-      try {
-        const { data, error } = await supabase
-          .from('risk_alerts')
-          .insert(finalAlertsToSave)
-          .select(); // Adding .select() helps some Node versions confirm the "handshake"
-
-        if (error) {
-          // This will tell us if a column name is wrong (e.g., 'cause' vs 'title')
-          console.error('❌ Supabase DB Error:', error.message);
-          console.error('Details:', error.details || 'Check column names and data types.');
-        } else {
-          console.log(`🎉 SUCCESS: ${data.length} alerts are now LIVE in the database.`);
-        }
-      } catch (insertErr) {
-        // This catches the 'fetch failed' network error specifically
-        console.error('🌐 Network/Fetch Error:', insertErr.message);
-        console.log('💡 TIP: Try running with: node --dns-result-order=ipv4first index.js');
-      }
-    } else {
-      console.log('📭 No high/medium risks detected today.');
-    }
-
-  } catch (globalErr) {
-    // This catches crashes in the Scrapers themselves
-    console.error('💥 SCRAPER PIPELINE FAILURE:', globalErr.message);
+    await syncRSSFeedsToVectorDB();
+    res.json({ success: true, message: 'RSS feeds embedded and saved to vector DB.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-}
+});
 
-runDailyRiskUpdate();
-setInterval(runDailyRiskUpdate, 24 * 60 * 60 * 1000);
+// 2. Endpoint for Live Mineral Prices
+app.get('/api/mineral-prices', async (req, res) => {
+  const prices = await getMineralPrices();
+  res.json(prices);
+});
+
+// 3. MAIN AI ENDPOINT: Run Groq Risk Scan on Active Batches
+app.post('/api/ai-risk-scan', async (req, res) => {
+  try {
+    const now = Date.now();
+
+    // Return cached AI alerts if scanned within the last 3 minutes
+    if (cachedAlerts && (now - lastScanTime < CACHE_DURATION_MS) && !req.body.forceRefresh) {
+      console.log('⚡ Returning cached Groq AI alerts (Saving API tokens)...');
+      return res.json({ success: true, alerts: cachedAlerts, cached: true });
+    }
+
+    let activeBatches = req.body.batches;
+
+    if (!activeBatches || activeBatches.length === 0) {
+      const { data } = await supabase.from('batches').select('*').limit(10);
+      if (data && data.length > 0) activeBatches = data;
+    }
+
+    if (!activeBatches || activeBatches.length === 0) {
+      activeBatches = FALLBACK_BATCHES;
+    }
+
+    // Call Groq Agent
+    const alerts = await analyzeBatchRisksWithGroq(activeBatches);
+    
+    // Cache the result
+    if (alerts && alerts.length > 0) {
+      cachedAlerts = alerts;
+      lastScanTime = now;
+    }
+
+    res.json({ success: true, alerts, cached: false });
+
+  } catch (err) {
+    console.error('❌ Endpoint Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 MineralChain AI Backend running on port ${PORT}`);
+});

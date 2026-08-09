@@ -12,7 +12,7 @@ const RISK_QUERIES = [
   // 3. Indian Policy (General but impactful)
   "India critical mineral (import ban OR export restriction OR mining policy) 2026"
 ];
-
+fd
 async function scrapeRiskNews() {
   const results = [];
   for (const query of RISK_QUERIES) {

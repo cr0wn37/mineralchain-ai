@@ -1,43 +1,101 @@
 // backend/scrapers/mineralPrices.js
-// Using metals.dev — free plan, no credit card needed
-// Sign up at: https://metals.dev
+// Powered by Metalprice API (https://metalpriceapi.com)
+
+const TROY_OUNCE_TO_TONNE = 32150.7466; // 1 metric tonne = 32,150.7466 troy ounces
 
 async function getMineralPrices() {
-  console.log('📈 Fetching live mineral prices...');
+  console.log('📈 Fetching live critical mineral prices from Metalprice API...');
+  
+  const apiKey = process.env.METALPRICE_API_KEY || process.env.METALS_DEV_KEY;
+  if (!apiKey) {
+    console.warn('⚠️ No METALPRICE_API_KEY found in .env, returning baseline market spot prices.');
+    return getFallbackPrices();
+  }
+
+  // Official Metalprice API symbol codes
+  const currencies = ['XLI', 'XCO', 'XCU', 'NI', 'ALU', 'XND', 'ZNC'].join(',');
+
   try {
-    // metals.dev free tier endpoint
     const res = await fetch(
-      `https://api.metals.dev/v1/latest?api_key=${process.env.METALS_DEV_KEY}&currency=USD&unit=toz`
+      `https://api.metalpriceapi.com/v1/latest?api_key=${apiKey}&base=USD&currencies=${currencies}`
     );
 
-    if (!res.ok) throw new Error(`Metals.Dev returned ${res.status}`);
+    if (!res.ok) throw new Error(`Metalprice API HTTP Status ${res.status}`);
     const data = await res.json();
 
-    if (data.status !== 'success') {
-      throw new Error(data.message || 'API error');
+    if (!data.success) {
+      const reason = data.error?.info || data.error?.type || 'API key restriction or invalid symbol';
+      console.warn(`⚠️ Metalprice API Notice (${reason}). Falling back to baseline market spot prices.`);
+      return getFallbackPrices();
     }
 
-    const metals = data.metals;
+    const rates = data.rates || {};
 
-    // Convert LME prices from per troy ounce to per tonne
-    const toTonne = (val) => val ? parseFloat((val * 32150).toFixed(2)) : null;
+    // Helper to calculate price per metric tonne in USD from raw rate
+    const parsePricePerTonne = (symbol, fallbackSpot) => {
+      const rawRate = rates[`USD${symbol}`] || rates[symbol];
+      if (!rawRate || rawRate === 0) return fallbackSpot;
+
+      const priceInUSDPerOunce = rawRate < 1 ? rawRate : (1 / rawRate);
+      return parseFloat((priceInUSDPerOunce * TROY_OUNCE_TO_TONNE).toFixed(2));
+    };
 
     return {
-      // LME metals — available on free plan
-      copper:    { price: toTonne(metals?.copper),    unit: 'USD/tonne', symbol: 'LME-CU' },
-      aluminium: { price: toTonne(metals?.aluminum),  unit: 'USD/tonne', symbol: 'LME-ALU' },
-      nickel:    { price: toTonne(metals?.nickel),    unit: 'USD/tonne', symbol: 'LME-NI' },
-
-      // Lithium — Static/Baseline for prototype (Spot prices move slowly)
-      lithium:   { price: 13500,                      unit: 'USD/tonne', symbol: 'SPOT-LI' },
-
-      updatedAt: new Date().toISOString()
+      lithium: { 
+        price: parsePricePerTonne('XLI', 13500), 
+        unit: 'USD/tonne', 
+        symbol: 'SPOT-XLI' 
+      },
+      cobalt: { 
+        price: parsePricePerTonne('XCO', 28500), 
+        unit: 'USD/tonne', 
+        symbol: 'SPOT-XCO' 
+      },
+      copper: { 
+        price: parsePricePerTonne('XCU', 9200), 
+        unit: 'USD/tonne', 
+        symbol: 'LME-XCU' 
+      },
+      nickel: { 
+        price: parsePricePerTonne('NI', 16800), 
+        unit: 'USD/tonne', 
+        symbol: 'LME-NI' 
+      },
+      aluminum: { 
+        price: parsePricePerTonne('ALU', 2450), 
+        unit: 'USD/tonne', 
+        symbol: 'LME-ALU' 
+      },
+      neodymium: { 
+        price: parsePricePerTonne('XND', 72000), 
+        unit: 'USD/tonne', 
+        symbol: 'REO-XND' 
+      },
+      zinc: { 
+        price: parsePricePerTonne('ZNC', 2800), 
+        unit: 'USD/tonne', 
+        symbol: 'LME-ZNC' 
+      },
+      updatedAt: new Date(data.timestamp ? data.timestamp * 1000 : Date.now()).toISOString()
     };
 
   } catch (err) {
-    console.error('❌ Failed to fetch mineral prices:', err.message);
-    return null;
+    console.error('❌ Failed to fetch live mineral prices:', err.message);
+    return getFallbackPrices();
   }
+}
+
+function getFallbackPrices() {
+  return {
+    lithium: { price: 13500, unit: 'USD/tonne', symbol: 'SPOT-LI' },
+    cobalt: { price: 28500, unit: 'USD/tonne', symbol: 'SPOT-CO' },
+    copper: { price: 9200, unit: 'USD/tonne', symbol: 'LME-CU' },
+    nickel: { price: 16800, unit: 'USD/tonne', symbol: 'LME-NI' },
+    aluminum: { price: 2450, unit: 'USD/tonne', symbol: 'LME-ALU' },
+    neodymium: { price: 72000, unit: 'USD/tonne', symbol: 'REO-ND' },
+    zinc: { price: 2800, unit: 'USD/tonne', symbol: 'LME-ZNC' },
+    updatedAt: new Date().toISOString()
+  };
 }
 
 module.exports = getMineralPrices;
